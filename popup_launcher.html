@@ -1,0 +1,210 @@
+<html>
+<head><title>Popup Launcher</title></head>
+<body>
+<div id="gui-container" style="display: none;">
+    <h1>Popup Launcher - パラメータエディタ</h1>
+
+    <div id="popups-list"></div>
+
+    <button onclick="addPopup()">ポップアップを追加</button>
+    <button onclick="launchPopups()">ポップアップを開く</button>
+    <button onclick="generateURL()">URLを生成</button>
+
+    <div id="generated-url-container"></div>
+</div>
+
+<script>
+// 状態管理
+let popupsData = [];
+
+// URLパラメータから初期データを読み込む
+function loadFromURL() {
+    const urlParams = new URLSearchParams(window.location.search);
+    let urlIndex = 1;
+
+    while (true) {
+        const targetUrl = urlParams.get(`URL${urlIndex}`);
+        if (!targetUrl) break;
+
+        const width = urlParams.get(`width${urlIndex}`) || '800';
+        const height = urlParams.get(`height${urlIndex}`) || '600';
+        const left = urlParams.get(`left${urlIndex}`) || '';
+        const top = urlParams.get(`top${urlIndex}`) || '';
+
+        popupsData.push({
+            url: targetUrl,
+            width: width,
+            height: height,
+            left: left,
+            top: top
+        });
+
+        urlIndex++;
+    }
+}
+
+// パラメータがあるかチェック
+function hasPopupParameters() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.has('URL1');
+}
+
+// edit=true パラメータをチェック
+function isEditMode() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('edit') === 'true';
+}
+
+// ポップアップを追加
+function addPopup() {
+    popupsData.push({
+        url: '',
+        width: '800',
+        height: '600',
+        left: '',
+        top: ''
+    });
+    renderGUI();
+}
+
+// ポップアップを削除
+function removePopup(index) {
+    popupsData.splice(index, 1);
+    renderGUI();
+}
+
+// GUIを再描画
+function renderGUI() {
+    const container = document.getElementById('popups-list');
+    container.innerHTML = '';
+
+    popupsData.forEach((popup, index) => {
+        const div = document.createElement('div');
+        div.innerHTML = `
+            <fieldset>
+                <legend>ポップアップ ${index + 1}</legend>
+                <div>
+                    <label>URL:</label>
+                    <input type="text" value="${popup.url}" onchange="updatePopup(${index}, 'url', this.value)" style="width: 400px;">
+                </div>
+                <div>
+                    <label>幅 (width):</label>
+                    <input type="number" value="${popup.width}" onchange="updatePopup(${index}, 'width', this.value)">
+                </div>
+                <div>
+                    <label>高さ (height):</label>
+                    <input type="number" value="${popup.height}" onchange="updatePopup(${index}, 'height', this.value)">
+                </div>
+                <div>
+                    <label>左位置 (left):</label>
+                    <input type="number" value="${popup.left}" onchange="updatePopup(${index}, 'left', this.value)">
+                </div>
+                <div>
+                    <label>上位置 (top):</label>
+                    <input type="number" value="${popup.top}" onchange="updatePopup(${index}, 'top', this.value)">
+                </div>
+                <button onclick="removePopup(${index})">削除</button>
+            </fieldset>
+        `;
+        container.appendChild(div);
+    });
+}
+
+// ポップアップデータを更新
+function updatePopup(index, field, value) {
+    popupsData[index][field] = value;
+}
+
+// ポップアップを開く
+function launchPopups() {
+    if (popupsData.length === 0) {
+        alert('ポップアップを追加してください');
+        return;
+    }
+
+    popupsData.forEach((popup, index) => {
+        const targetUrl = popup.url;
+        if (!targetUrl) return;
+
+        const width = popup.width || '800';
+        const height = popup.height || '600';
+        const left = popup.left || '';
+        const top = popup.top || '';
+
+        if (isNaN(width) || isNaN(height) || (left && isNaN(left)) || (top && isNaN(top))) {
+            alert(`ポップアップ ${index + 1}: パラメータが不正です`);
+            return;
+        }
+
+        let features = `width=${width},height=${height},toolbar=no,menubar=no,location=no,status=no,scrollbars=yes,resizable=yes`;
+
+        if (left) features += `,left=${left}`;
+        if (top) features += `,top=${top}`;
+
+        window.open(targetUrl, `popup${index + 1}`, features);
+    });
+}
+
+// URLを生成
+function generateURL() {
+    let queryString = '';
+
+    popupsData.forEach((popup, index) => {
+        const num = index + 1;
+        if (popup.url) {
+            queryString += `URL${num}=${encodeURIComponent(popup.url)}`;
+            queryString += `&width${num}=${popup.width}`;
+            queryString += `&height${num}=${popup.height}`;
+            if (popup.left) queryString += `&left${num}=${popup.left}`;
+            if (popup.top) queryString += `&top${num}=${popup.top}`;
+            queryString += '&';
+        }
+    });
+
+    queryString = queryString.slice(0, -1); // 最後の&を削除
+
+    const baseUrl = window.location.pathname;
+    const fullUrl = `${baseUrl}?${queryString}`;
+
+    const container = document.getElementById('generated-url-container');
+    container.innerHTML = `
+        <fieldset>
+            <legend>生成されたURL</legend>
+            <textarea readonly style="width: 100%; height: 100px;">${fullUrl}</textarea>
+            <button onclick="copyToClipboard()">クリップボードにコピー</button>
+        </fieldset>
+    `;
+}
+
+// クリップボードにコピー
+function copyToClipboard() {
+    const textarea = document.querySelector('#generated-url-container textarea');
+    textarea.select();
+    document.execCommand('copy');
+    alert('URLをクリップボードにコピーしました');
+}
+
+// 初期化
+window.addEventListener('DOMContentLoaded', () => {
+    loadFromURL();
+
+    // 編集GUIを開くかどうかを判定
+    const hasParams = hasPopupParameters();
+    const editMode = isEditMode();
+
+    if (!hasParams || editMode) {
+        // パラメータなし、または edit=true の場合は編集GUIを表示
+        document.getElementById('gui-container').style.display = 'block';
+        if (popupsData.length === 0) {
+            addPopup();
+        } else {
+            renderGUI();
+        }
+    } else {
+        // パラメータあり、edit=true なしの場合はそのままポップアップを開く
+        launchPopups();
+    }
+});
+</script>
+</body>
+</html>
